@@ -1,0 +1,92 @@
+http:
+  routers:
+    bwarchive-http:
+      rule: Host(`bwarchive.lib.lehigh.edu`)
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-https
+      service: veridian
+
+    bwarchive:
+      rule: Host(`bwarchive.lib.lehigh.edu`)
+      entryPoints:
+        - websecure
+      tls: {}
+      middlewares:
+        - captcha-protect
+      service: veridian
+
+  middlewares:
+    redirect-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    veridian-entrypoint:
+      replacePath:
+        path: /cgi-bin/lehigh
+
+    captcha-protect:
+      plugin:
+        captcha-protect:
+          window: 864000
+          mode: regex
+          protectRoutes: ^/
+
+          excludeRoutes:
+            - \/oai\/request
+            - \/node\/\d+\/manifest
+
+          protectParameters: "true"
+
+          exemptIps:
+            # Lehigh range
+            - 128.180.0.0/16
+
+            # Lehigh Guest Network
+            - 4.59.138.56/29
+            - 162.223.16.248/29
+            - 208.220.178.48/28
+            - 209.66.120.16/28
+
+          challengeTmpl: /etc/traefik/challenge.tmpl.html
+          challengeURL: ""
+          challengeStatusCode: 429
+
+          captchaProvider: turnstile
+          siteKey: {{ env "TURNSTILE_SITE_KEY" }}
+          secretKey: {{ env "TURNSTILE_SECRET_KEY" }}
+
+          goodBots:
+            - apple.com
+            - archive.org
+            - commoncrawl.org
+            - duckduckgo.com
+            - iframely.com
+            - facebook.com
+            - instagram.com
+            - kagibot.org
+            - linkedin.com
+            - msn.com
+            - openalex.org
+            - twitter.com
+            - x.com
+          persistentStateFile: /var/log/traefik/state.json
+          periodSeconds: 30
+          failureThreshold: 3
+          enableGooglebotIPCheck: "true"
+          enableUptimeRobotBypass: "true"
+
+  services:
+    veridian:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: http://127.0.0.1:8080
+
+tls:
+  certificates:
+    - certFile: /etc/ssl/certs/lib.lehigh.edu-fullchain.crt
+      keyFile: /etc/ssl/private/lib.lehigh.edu.key
+
